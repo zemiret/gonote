@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/jroimartin/gocui"
@@ -15,20 +14,38 @@ func main() {
 	defer g.Close()
 
 	mainLay := NewLayout()
-	var bot, topL, topR *gocui.View
-	var botV, topLV, topRV *GridItem
+	var topL, topR *gocui.View
+
+	notebookList := &NotebookListWidget{
+		notebooks: []*Notebook{
+			{Name: "Notebook1"},
+			{Name: "Notebook2"},
+			{Name: "Notebook3"},
+		},
+		active: "Notebook1",
+	}
+
+	var isfirst bool
 
 	g.SetManagerFunc(func(g *gocui.Gui) error {
 		maxX, maxY := g.Size()
 
-		if topL, err = g.SetView("leftPane", 0, 0, 30, maxY-8); err != nil {
+		isfirst = false
+
+		if topL, err = g.SetView("leftPane", 0, 0, 30, maxY-1); err != nil {
+			log.Println("Creating left pane")
+
 			if err != gocui.ErrUnknownView {
 				panic(err)
 			}
 			topL.Title = "Top left"
+
+			isfirst = true
 		}
 
-		if topR, err = g.SetView("mainPane", 31, 0, maxX-1, maxY-8); err != nil {
+		if topR, err = g.SetView("mainPane", 31, 0, maxX-1, maxY-1); err != nil {
+			log.Println("Creating main pane")
+
 			if err != gocui.ErrUnknownView {
 				panic(err)
 			}
@@ -36,54 +53,45 @@ func main() {
 			topR.Editable = true
 			topR.Wrap = true
 			topR.Autoscroll = true
+
+			isfirst = true
 		}
 
-		if bot, err = g.SetView("bottomPane", 0, maxY-7, maxX, maxY-1); err != nil {
-			if err != gocui.ErrUnknownView {
-				panic(err)
-			}
-			bot.Title = "Bottom pane"
+		if isfirst {
+			log.Println("isfirst, true")
 
-		}
-
-		if err == gocui.ErrUnknownView {
-			topLV = &GridItem{
-				V:      topL,
-				Right:  topR,
-				Bottom: bot,
-				draw: func(maxX, maxY int, v *gocui.View) error {
-					_, err := fmt.Fprintf(v, "Testooo left")
-					return err
-				},
+			topLV := &View{
+				View:   topL,
+				widget: notebookList,
 			}
 
-			topRV = &GridItem{
-				V:      topR,
-				Left:   topL,
-				Bottom: bot,
-				draw: func(maxX, maxY int, v *gocui.View) error {
-					_, err := fmt.Fprintf(v, "Testooo main")
-					return err
-				},
+			topRV := &View{
+				View: topR,
 			}
 
-			botV = &GridItem{
-				V:   bot,
-				Top: topL,
-				draw: func(maxX, maxY int, v *gocui.View) error {
-					_, err := fmt.Fprintf(v, "Testooo bot")
-					return err
-				},
+			topLGI := &GridItem{
+				V:     topLV,
+				Right: topRV,
+			}
+
+			topRGI := &GridItem{
+				V:    topRV,
+				Left: topLV,
 			}
 
 			mainLay.GUI = g
 
-			mainLay.AddView(topRV)
-			mainLay.AddView(topLV)
-			mainLay.AddView(botV)
+			mainLay.AddGridItem(topRGI)
+			mainLay.AddGridItem(topLGI)
 
-			_ = mainLay.Draw()
-			_ = mainLay.SetActive(topLV.V.Name())
+			if err = mainLay.SetActive(topLGI.V.Name()); err != nil {
+				log.Panicln(err)
+			}
+		}
+
+		// TODO: Here we have a culprit. Sometimes this fails. Fix it
+		if err = mainLay.Draw(); err != nil {
+			log.Panicln(err)
 		}
 
 		return nil

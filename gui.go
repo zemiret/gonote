@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jroimartin/gocui"
+	"log"
+	"sync"
 )
 
 type Direction int
@@ -16,81 +18,86 @@ const (
 )
 
 var (
-	ErrDrawUnimplemented = errors.New("draw function not supplied")
+	ErrDrawUnimplemented = errors.New("view does not hav an active widget")
+	ErrDrawFail          = errors.New("widget draw fail")
 )
 
-// Draws itself
-type Drawer interface {
-	Draw(g *gocui.Gui) error
-}
-
-// Provides view's name to switch to based on the direction
-type Switcher interface {
-	Name() string
-	SwitchName(d Direction) string
-}
-
-// Can draw itself and switch to other
-type DrawSwitcher interface {
-	Drawer
-	Switcher
+type View struct {
+	*gocui.View
+	widget Widget
 }
 
 // --- GridItem is a DrawSwitcher ---
 type GridItem struct {
-	draw   func(maxX, maxY int, v *gocui.View) error
-	V      *gocui.View // Main view
-	Left   *gocui.View
-	Top    *gocui.View
-	Right  *gocui.View
-	Bottom *gocui.View
+	V      *View // Main view
+	Left   *View
+	Top    *View
+	Right  *View
+	Bottom *View
 }
 
-func (v *GridItem) Name() string {
-	return v.V.Name()
+func (gi *GridItem) Name() string {
+	return gi.V.Name()
 }
 
-func (v *GridItem) Draw(g *gocui.Gui) error {
-	maxX, maxY := g.Size()
+func (gi *GridItem) Draw(g *gocui.Gui) (derr error) {
+	defer func() {
+		if err := recover(); err != nil {
+			derr = ErrDrawFail
+		}
+	}()
 
-	if v.draw == nil {
+	if gi.V.widget == nil {
 		return ErrDrawUnimplemented
 	}
 
-	return v.draw(maxX, maxY, v.V)
+	gi.V.Clear()
+	gi.V.widget.Draw(gi.V)
+	return
 }
 
-func (v *GridItem) SwitchName(d Direction) string {
+func (gi *GridItem) SwitchName(d Direction) string {
 	switch {
-	case d == Left && v.Left != nil:
-		return v.Left.Name()
-	case d == Top && v.Top != nil:
-		return v.Top.Name()
-	case d == Right && v.Right != nil:
-		return v.Right.Name()
-	case d == Bottom && v.Bottom != nil:
-		return v.Bottom.Name()
+	case d == Left && gi.Left != nil:
+		return gi.Left.Name()
+	case d == Top && gi.Top != nil:
+		return gi.Top.Name()
+	case d == Right && gi.Right != nil:
+		return gi.Right.Name()
+	case d == Bottom && gi.Bottom != nil:
+		return gi.Bottom.Name()
 	default:
 		return ""
 	}
 }
 
-// --- Layout manages DrawSwitcher in a grid
 // In case support for nesting layouts is required, it could implement DrawSwitcher to handle it
 type layout struct {
-	GUI    *gocui.Gui
-	Active DrawSwitcher
-	Grid   map[string]DrawSwitcher
+	GUI     *gocui.Gui
+	Active  *GridItem
+	GridMap *GridItemsMap
+}
+
+// TODO: Make sure this map really needs concurrent access
+type GridItemsMap struct {
+	Grid map[string]*GridItem
+	sync.RWMutex
 }
 
 func NewLayout() *layout {
 	return &layout{
-		Grid: make(map[string]DrawSwitcher),
+		GridMap: &GridItemsMap{
+			Grid: make(map[string]*GridItem),
+		},
 	}
 }
 
 func (lay *layout) Draw() error {
-	for _, view := range lay.Grid {
+	lay.GridMap.RLock()
+	defer lay.GridMap.RUnlock()
+	for _, view := range lay.GridMap.Grid {
+		log.Println("Drawing view ", view.Name())
+
 		if err := view.Draw(lay.GUI); err != nil {
 			return err
 		}
@@ -113,11 +120,23 @@ func (lay *layout) SetActive(name string) error {
 	if err != nil {
 		return fmt.Errorf("error setting current view: %v", err)
 	}
-	lay.Active = lay.Grid[name]
+	lay.GridMap.RLock()
+	defer lay.GridMap.RUnlock()
+	lay.Active = lay.GridMap.Grid[name]
 
 	return nil
 }
 
-func (lay *layout) AddView(v DrawSwitcher) {
-	lay.Grid[v.Name()] = v
+func (lay *layout) AddGridItem(gi *GridItem) {
+	log.Println("Adding view: ", gi.Name())
+
+	lay.GridMap.Lock()
+	defer lay.GridMap.Unlock()
+	lay.GridMap.Grid[gi.Name()] = gi
+
+	log.Println("Gird content---")
+	for _, view := range lay.GridMap.Grid {
+		log.Println(view.Name())
+	}
+	log.Println("---")
 }
