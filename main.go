@@ -14,16 +14,18 @@ func main() {
 	defer g.Close()
 
 	mainLay := NewLayout()
-	var topL, topR *gocui.View
-
-	notebookList := &NotebookListWidget{
+	initState(State{
 		notebooks: []*Notebook{
 			{Name: "Notebook1"},
 			{Name: "Notebook2"},
 			{Name: "Notebook3"},
 		},
 		active: "Notebook1",
-	}
+	}, mainLay)
+
+	var topL, topR *gocui.View
+
+	notebookList := &NotebookListWidget{}
 
 	var isfirst bool
 
@@ -33,7 +35,9 @@ func main() {
 		isfirst = false
 
 		if topL, err = g.SetView("leftPane", 0, 0, 30, maxY-1); err != nil {
-			log.Println("Creating left pane")
+			if Config.debug {
+				log.Println("Creating left pane")
+			}
 
 			if err != gocui.ErrUnknownView {
 				panic(err)
@@ -44,7 +48,9 @@ func main() {
 		}
 
 		if topR, err = g.SetView("mainPane", 31, 0, maxX-1, maxY-1); err != nil {
-			log.Println("Creating main pane")
+			if Config.debug {
+				log.Println("Creating main pane")
+			}
 
 			if err != gocui.ErrUnknownView {
 				panic(err)
@@ -58,15 +64,17 @@ func main() {
 		}
 
 		if isfirst {
-			log.Println("isfirst, true")
-
-			topLV := &View{
-				View:   topL,
-				widget: notebookList,
+			if Config.debug {
+				log.Println("isfirst, true")
 			}
 
-			topRV := &View{
-				View: topR,
+			topLV, err := NewView(g, topL, notebookList)
+			if err != nil {
+				log.Panicln(err)
+			}
+			topRV, err := NewView(g, topR, nil)
+			if err != nil {
+				log.Panicln(err)
 			}
 
 			topLGI := &GridItem{
@@ -84,12 +92,12 @@ func main() {
 			mainLay.AddGridItem(topRGI)
 			mainLay.AddGridItem(topLGI)
 
+
 			if err = mainLay.SetActive(topLGI.V.Name()); err != nil {
 				log.Panicln(err)
 			}
 		}
 
-		// TODO: Here we have a culprit. Sometimes this fails. Fix it
 		if err = mainLay.Draw(); err != nil {
 			log.Panicln(err)
 		}

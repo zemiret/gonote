@@ -22,12 +22,61 @@ var (
 	ErrDrawFail          = errors.New("widget draw fail")
 )
 
+func ColorStr(s string, color int) string {
+	return fmt.Sprintf("\033[3%d;1m%s\033[0m", color, s)
+}
+
 type View struct {
 	*gocui.View
+	gui *gocui.Gui
 	widget Widget
 }
 
-// --- GridItem is a DrawSwitcher ---
+func NewView(gui *gocui.Gui, gv *gocui.View, w Widget) (*View, error) {
+	v := &View{}
+
+	v.View = gv
+	v.gui = gui
+	if w != nil {
+		return v, v.setWidget(w)
+	}
+	return v, nil
+}
+
+func (v *View) setWidget(w Widget) error {
+	v.widget = w
+	for _, in := range w.AcceptedInputs() {
+		if Config.debug {
+			log.Printf("Setting keybinding at %s\n", v.Name())
+		}
+		if err := v.gui.SetKeybinding(v.Name(), in.Key, in.Mod, func(gui *gocui.Gui, gv *gocui.View) error {
+			if Config.debug {
+				log.Printf("Binding called for %s\n", v.Name())
+			}
+			if v.widget != nil {
+				return v.widget.HandleInput(in.Key, in.Mod, gui, gv)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+//func (v *View) setKeybinding(g *gocui.Gui, key gocui.Key, mod gocui.Modifier) error {
+//	return g.SetKeybinding(v.Name(), key, mod, func(gui *gocui.Gui, gv *gocui.View) (err error) {
+//		err = nil
+//		if v.widget != nil {
+//			err = v.widget.HandleInput(key, mod, gui, gv)
+//		}
+//		return
+//	})
+//}
+
+//func widgetInputHandler()
+
 type GridItem struct {
 	V      *View // Main view
 	Left   *View
@@ -72,7 +121,7 @@ func (gi *GridItem) SwitchName(d Direction) string {
 }
 
 // In case support for nesting layouts is required, it could implement DrawSwitcher to handle it
-type layout struct {
+type Layout struct {
 	GUI     *gocui.Gui
 	Active  *GridItem
 	GridMap *GridItemsMap
@@ -84,28 +133,30 @@ type GridItemsMap struct {
 	sync.RWMutex
 }
 
-func NewLayout() *layout {
-	return &layout{
+func NewLayout() *Layout {
+	return &Layout{
 		GridMap: &GridItemsMap{
 			Grid: make(map[string]*GridItem),
 		},
 	}
 }
 
-func (lay *layout) Draw() error {
+func (lay *Layout) Draw() error {
 	lay.GridMap.RLock()
 	defer lay.GridMap.RUnlock()
 	for _, view := range lay.GridMap.Grid {
-		log.Println("Drawing view ", view.Name())
+		if Config.debug {
+			log.Println("Drawing view ", view.Name())
+		}
 
-		if err := view.Draw(lay.GUI); err != nil {
+		if err := view.Draw(lay.GUI); err != nil && err != ErrDrawUnimplemented {
 			return err
 		}
 	}
 	return nil
 }
 
-func (lay *layout) SwitchActive(d Direction) (err error) {
+func (lay *Layout) SwitchActive(d Direction) (err error) {
 	newActName := lay.Active.SwitchName(d)
 	if newActName != "" {
 		err = lay.SetActive(newActName)
@@ -115,7 +166,7 @@ func (lay *layout) SwitchActive(d Direction) (err error) {
 	return
 }
 
-func (lay *layout) SetActive(name string) error {
+func (lay *Layout) SetActive(name string) error {
 	_, err := lay.GUI.SetCurrentView(name)
 	if err != nil {
 		return fmt.Errorf("error setting current view: %v", err)
@@ -127,16 +178,20 @@ func (lay *layout) SetActive(name string) error {
 	return nil
 }
 
-func (lay *layout) AddGridItem(gi *GridItem) {
-	log.Println("Adding view: ", gi.Name())
+func (lay *Layout) AddGridItem(gi *GridItem) {
+	if Config.debug {
+		log.Println("Adding view: ", gi.Name())
+	}
 
 	lay.GridMap.Lock()
 	defer lay.GridMap.Unlock()
 	lay.GridMap.Grid[gi.Name()] = gi
 
-	log.Println("Gird content---")
-	for _, view := range lay.GridMap.Grid {
-		log.Println(view.Name())
+	if Config.debug {
+		log.Println("Gird content---")
+		for _, view := range lay.GridMap.Grid {
+			log.Println(view.Name())
+		}
+		log.Println("---")
 	}
-	log.Println("---")
 }
