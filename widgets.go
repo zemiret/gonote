@@ -10,6 +10,19 @@ type Input struct {
 	Mod gocui.Modifier
 }
 
+// TODO: Try to come up with these "higher level" actions to some sensible solution
+type ActKind int
+
+const (
+	SwitchView ActKind = iota
+)
+
+// Describes an action that is to be handled by layout or gui, or some other outside service
+type Action struct {
+	Kind    ActKind
+	Payload interface{}
+}
+
 type Widget interface {
 	Draw(v *View)
 	HandleInput(key interface{}, mod gocui.Modifier, g *gocui.Gui, v *gocui.View) error
@@ -18,22 +31,21 @@ type Widget interface {
 
 type NotebookListWidget struct{}
 
+// TODO: Could we make a more generic tree widget out of this?
+
 // Maybe create something like this for widgets???
 //func (nl *NotebookListWidget) selectState() {
 //
 //}
 
-// TODO: Maybe widget should expose all the inputs it can handle?
-// Then view could easily read it and add handlers to that automatically (yes, it should)
-
 func (nl *NotebookListWidget) Draw(v *View) {
 	var err error
 
 	notebooks := AppStore.s.notebooks
-	active := AppStore.s.active
+	active := AppStore.s.activeIdx
 
-	for _, n := range notebooks {
-		if n.Name == active {
+	for i, n := range notebooks {
+		if i == active {
 			_, err = fmt.Fprintln(v, ColorStr(fmt.Sprintf("* %s", n.Name), 3))
 		} else {
 			_, err = fmt.Fprintf(v, "* %s\n", n.Name)
@@ -46,17 +58,25 @@ func (nl *NotebookListWidget) Draw(v *View) {
 }
 
 func (nl *NotebookListWidget) HandleInput(key interface{}, mod gocui.Modifier, g *gocui.Gui, v *gocui.View) error {
-	_ = AppStore.Update(func (s State) State {
-		s.active = "Notebook2"
-		return s
-	})
-	return nil
+	switch key {
+	case gocui.KeyArrowUp:
+		return AppStore.Update(func(s State) State {
+			s.activeIdx = (s.activeIdx - 1 + len(s.notebooks)) % len(s.notebooks)
+			return s
+		})
+	case gocui.KeyArrowDown:
+		return AppStore.Update(func(s State) State {
+			s.activeIdx = (s.activeIdx + 1) % len(s.notebooks)
+			return s
+		})
+	default:
+		return ErrUnsetKey
+	}
 }
 
 func (nl *NotebookListWidget) AcceptedInputs() []Input {
 	return []Input{
-		{Key: gocui.KeyCtrlY, Mod: gocui.ModNone},
+		{Key: gocui.KeyArrowUp, Mod: gocui.ModNone},
+		{Key: gocui.KeyArrowDown, Mod: gocui.ModNone},
 	}
 }
-
-

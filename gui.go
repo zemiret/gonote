@@ -18,8 +18,9 @@ const (
 )
 
 var (
-	ErrDrawUnimplemented = errors.New("view does not hav an active widget")
+	ErrDrawUnimplemented = errors.New("view does not hav an activeIdx widget")
 	ErrDrawFail          = errors.New("widget draw fail")
+	ErrUnsetKey          = errors.New("given key could not be handled by a widget")
 )
 
 func ColorStr(s string, color int) string {
@@ -28,7 +29,7 @@ func ColorStr(s string, color int) string {
 
 type View struct {
 	*gocui.View
-	gui *gocui.Gui
+	gui    *gocui.Gui
 	widget Widget
 }
 
@@ -64,18 +65,6 @@ func (v *View) setWidget(w Widget) error {
 
 	return nil
 }
-
-//func (v *View) setKeybinding(g *gocui.Gui, key gocui.Key, mod gocui.Modifier) error {
-//	return g.SetKeybinding(v.Name(), key, mod, func(gui *gocui.Gui, gv *gocui.View) (err error) {
-//		err = nil
-//		if v.widget != nil {
-//			err = v.widget.HandleInput(key, mod, gui, gv)
-//		}
-//		return
-//	})
-//}
-
-//func widgetInputHandler()
 
 type GridItem struct {
 	V      *View // Main view

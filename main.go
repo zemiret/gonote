@@ -14,14 +14,7 @@ func main() {
 	defer g.Close()
 
 	mainLay := NewLayout()
-	initState(State{
-		notebooks: []*Notebook{
-			{Name: "Notebook1"},
-			{Name: "Notebook2"},
-			{Name: "Notebook3"},
-		},
-		active: "Notebook1",
-	}, mainLay)
+	initStore(mockState, mainLay)
 
 	var topL, topR *gocui.View
 
@@ -91,7 +84,6 @@ func main() {
 
 			mainLay.AddGridItem(topRGI)
 			mainLay.AddGridItem(topLGI)
-
 
 			if err = mainLay.SetActive(topLGI.V.Name()); err != nil {
 				log.Panicln(err)
