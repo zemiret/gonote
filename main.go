@@ -7,6 +7,9 @@ import (
 )
 
 func main() {
+	// TODO: OK. TIME TO REFACTOR AND TDD
+
+
 	g, err := gocui.NewGui(gocui.OutputNormal)
 	if err != nil {
 		log.Panicln(err)
@@ -18,7 +21,7 @@ func main() {
 
 	var topL, topR *gocui.View
 
-	notebookList := &NotebookListWidget{}
+	notebookList := NotebookTreeWidget(AppStore.s.notebooks)
 
 	var isfirst bool
 

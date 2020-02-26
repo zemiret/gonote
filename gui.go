@@ -21,6 +21,7 @@ var (
 	ErrDrawUnimplemented = errors.New("view does not hav an activeIdx widget")
 	ErrDrawFail          = errors.New("widget draw fail")
 	ErrUnsetKey          = errors.New("given key could not be handled by a widget")
+	ErrWrongType         = errors.New("unexpected type")
 )
 
 func ColorStr(s string, color int) string {
@@ -50,14 +51,41 @@ func (v *View) setWidget(w Widget) error {
 		if Config.debug {
 			log.Printf("Setting keybinding at %s\n", v.Name())
 		}
+
+		in := in
+
 		if err := v.gui.SetKeybinding(v.Name(), in.Key, in.Mod, func(gui *gocui.Gui, gv *gocui.View) error {
 			if Config.debug {
 				log.Printf("Binding called for %s\n", v.Name())
 			}
 			if v.widget != nil {
-				return v.widget.HandleInput(in.Key, in.Mod, gui, gv)
+				act, err := v.widget.HandleInput(in.Key, in.Mod, gui, gv)
+				if err != nil {
+					return err
+				}
+				if act != nil {
+					switch act.Kind {
+					case SwitchToNoteView:
+						switch s := act.Payload.(type) {
+						case *Note:
+							// TODO: This shouldn't be hardcoded as is in View. Bleeeeh
+							if err := AppStore.l.SetActive("mainPane"); err != nil {
+								return err
+							}
+							mainView, _ := v.gui.View("mainPane")
+							mainView.Clear()
+							if _, err := fmt.Fprint(mainView, s.Content); err != nil {
+								return err
+							}
+						default:
+							log.Printf("%T\n", s)
+							return ErrWrongType
+						}
+					}
+				}
 			}
 			return nil
+
 		}); err != nil {
 			return err
 		}

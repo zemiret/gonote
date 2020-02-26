@@ -6,6 +6,6 @@ type Note struct {
 }
 
 type Notebook struct {
-	Notes []Note
+	Notes []*Note
 	Name string
 }

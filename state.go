@@ -2,7 +2,6 @@ package main
 
 type State struct {
 	notebooks []*Notebook
-	activeIdx int
 }
 
 type Store struct {
@@ -26,11 +25,10 @@ func (s *Store) Update(updateFn func(s State) State) error {
 
 // --------- TODO: SOME MOCK STATE -------------------
 var mockState = State{
-	activeIdx: 0,
 	notebooks: []*Notebook{
 		{
 			Name: "Notebook1",
-			Notes: []Note{
+			Notes: []*Note{
 				{
 					Name:    "Note11",
 					Content: "Note11 content. YO!",
@@ -43,7 +41,7 @@ var mockState = State{
 		},
 		{
 			Name: "Notebook2",
-			Notes: []Note{
+			Notes: []*Note{
 				{
 					Name:    "Note21",
 					Content: "Note21 content. YO!",
@@ -56,10 +54,10 @@ var mockState = State{
 		},
 		{
 			Name: "Notebook3",
-			Notes: []Note{
+			Notes: []*Note{
 				{
 					Name:    "Note31",
-					Content: "Note21 content. YO!",
+					Content: "Note31 content. YO!",
 				},
 			},
 		},
